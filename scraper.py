@@ -72,13 +72,22 @@ def parse_cards(html_text, category_name, default_brand):
 def run_scraper():
     os.makedirs("data", exist_ok=True)
     session = requests.Session(impersonate="chrome110")
+    
+    print("🤖 Trying to connect to BEE website...")
     appliances = get_all_appliances(session)
+    print(f"✅ Found {len(appliances)} appliance categories!")
+    
+    if len(appliances) == 0:
+        print("🚨 ERROR: The server blocked us or didn't respond. Exiting.")
+        return
+
     headers = {"Content-Type": "application/json; charset=utf-8", "X-Requested-With": "XMLHttpRequest"}
 
     for eqcode, name in appliances.items():
         safe_filename = f"data/{name.replace(' ', '_').replace('/', '_')}.json"
         if os.path.exists(safe_filename): continue
         
+        print(f"🚀 Scraping category: {name}...")
         api_endpoint, base_payload, brands = auto_discover_rules(session, eqcode)
         if not api_endpoint: continue
         
@@ -97,20 +106,4 @@ def run_scraper():
                             seen_items.add(item_id)
                 else: raise Exception()
             except:
-                for star in ["1", "2", "3", "4", "5"]:
-                    try:
-                        res = session.post(api_endpoint, json={**payload, "starlabel": [star]}, headers=headers, timeout=None)
-                        if res.status_code == 200:
-                            for item in parse_cards(res.text, name, brand):
-                                item_id = f"{item['Brand']}-{item['Model']}-{item['Star Rating']}"
-                                if item_id not in seen_items:
-                                    appliance_data.append(item)
-                                    seen_items.add(item_id)
-                    except: pass
-            time.sleep(1)
-
-        with open(safe_filename, "w", encoding="utf-8") as f:
-            json.dump(appliance_data, f, separators=(',', ':'))
-
-if __name__ == "__main__":
-    run_scraper()
+                for star in ["1", "2",
