@@ -106,4 +106,21 @@ def run_scraper():
                             seen_items.add(item_id)
                 else: raise Exception()
             except:
-                for star in ["1", "2",
+                for star in ["1", "2", "3", "4", "5"]:
+                    try:
+                        res = session.post(api_endpoint, json={**payload, "starlabel": [star]}, headers=headers, timeout=None)
+                        if res.status_code == 200:
+                            for item in parse_cards(res.text, name, brand):
+                                item_id = f"{item['Brand']}-{item['Model']}-{item['Star Rating']}"
+                                if item_id not in seen_items:
+                                    appliance_data.append(item)
+                                    seen_items.add(item_id)
+                    except: pass
+            time.sleep(1)
+
+        with open(safe_filename, "w", encoding="utf-8") as f:
+            json.dump(appliance_data, f, separators=(',', ':'))
+        print(f"✅ Saved {len(appliance_data)} items for {name}!")
+
+if __name__ == "__main__":
+    run_scraper()
