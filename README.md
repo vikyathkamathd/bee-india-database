@@ -1,44 +1,44 @@
-# bee-india-database
+# BEE India Database
 
-A high-performance web scraper and mobile-first frontend for the Indian Bureau of Energy Efficiency (BEE) database. 
+A high-performance scraper and web explorer for the Indian Bureau of Energy Efficiency (BEE) appliance database. 
 
-This project extracts appliance energy efficiency data (Star Ratings, Power Consumption, Capacities, etc.) from the official BEE website and serves it through a lightning-fast, highly optimized web interface.
+This project extracts energy efficiency data (Star Ratings, Power Consumption, and Technical Specs) from the official BEE website and provides a searchable, mobile-friendly interface to browse thousands of products.
 
-## Links
-* **[View the Live Explorer Here](https://vikyathkamathd.github.io/bee-india-database/)**
+## 🚀 Links
+* **[Live Explorer](https://vikyathkamathd.github.io/bee-india-database/)**
 
-## The Edge Scraper Architecture (WAF Bypass)
-Initially built with cloud-based CI/CD pipelines, the extraction engine was blocked by the Indian Government's Web Application Firewall (WAF), which geo-blocks large international datacenters to prevent bot attacks. 
+## ✨ Features
+* **Universal Parser**: Deterministically extracts data from both table and card layouts on the BEE portal.
+* **WAF Bypass**: Uses `curl_cffi` for TLS fingerprinting to ensure reliable extraction from local edge devices.
+* **Parallel Processing**: Multi-threaded scraper that processes dozens of brands simultaneously.
+* **Mobile-First UI**: A lightweight, reactive frontend built with Alpine.js and Tailwind CSS.
+* **Deep Filtering**: Automatically generates filters based on technical specifications found in the dataset.
 
-**The Solution:** The extraction engine (`script.py`) runs locally on an edge device. By utilizing a local Indian telecom IP address, it acts as an "Edge Server" to successfully bypass the WAF, extract the JSON data, and automatically push the fresh dataset directly to GitHub, which serves as the global CDN for the frontend.
+## 🛠️ Tech Stack
+* **Scraper**: Python 3, `curl_cffi`, `beautifulsoup4`.
+* **Frontend**: HTML5, Tailwind CSS, Alpine.js.
+* **Storage**: GitHub (serving JSON files as a CDN).
 
-## Features
+## 💻 Run Locally
 
-* **WAF-Bypassing Extraction:** Utilizes `curl_cffi` for TLS fingerprinting and an edge-device execution model to reliably extract data without triggering security blocks.
-* **Mobile-First UI:** Built to mimic native shopping apps with a clean, bottom-sheet driven interface.
-* **Deep Data Parsing:** Bypasses basic HTML structures to extract deep technical specifications (e.g., Cooling Method, ISEER, Rated Capacity).
-* **Zero-Lag Performance:** Uses Virtual Pagination (Infinite Scroll) and debounced searching to handle thousands of products without crashing mobile browsers.
-* **Dynamic Filtering:** Automatically generates technical specification filters based on the raw JSON dataset.
+### 1. Prerequisites
+Ensure you have Python 3.10+ installed.
 
-## Tech Stack
+### 2. Setup
+```bash
+git clone https://github.com/vikyathkamathd/bee-india-database.git
+cd bee-india-database
+pip install -r requirements.txt
+```
 
-**Backend / Data Pipeline:**
-* Python 3
-* `curl_cffi` (for TLS spoofing)
-* `beautifulsoup4` (for DOM parsing)
-* Git (for automated state management and CDN deployment)
+### 3. Run Scraper
+This will crawl the BEE website, generate JSON files in the `data/` folder, and update the web manifest.
+```bash
+python3 script.py
+```
 
-**Frontend:**
-* HTML5 / Vanilla JavaScript
-* Tailwind CSS
-* Alpine.js (for lightweight, reactive state management)
-
-## Run Locally
-
-To run the edge-scraper pipeline yourself:
-
-1. Ensure Python and Git are installed on your device.
-2. Clone the repository:
-   ```bash
-   git clone [https://github.com/vikyathkamathd/bee-india-database.git](https://github.com/vikyathkamathd/bee-india-database.git)
-   cd bee-india-database
+### 4. View Website
+Simply open `index.html` in your browser or serve it using a local server:
+```bash
+python3 -m http.server 8000
+```

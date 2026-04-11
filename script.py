@@ -80,11 +80,12 @@ def update_manifest():
         json.dump(manifest, f, indent=2)
 
 def push_to_github():
-    """Commits and pushes updates to GitHub."""
-    os.system('git add index.html script.py data/ .gitignore')
+    """Commits and pushes all project updates to GitHub."""
+    os.system('git add .')
     if subprocess.getoutput('git status --porcelain').strip():
-        os.system('git commit -m "Automated data & UI sync"')
+        os.system('git commit -m "Final project cleanup & README update"')
         os.system('git push -u origin main')
+
 
 def get_all_appliances(session):
     try:
