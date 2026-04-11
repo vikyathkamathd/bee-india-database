@@ -5,14 +5,104 @@ import time
 import subprocess
 from curl_cffi import requests
 from bs4 import BeautifulSoup
+from google import genai
+from google.genai import types
+
+# --- API KEY MANAGER ---
+def get_api_keys():
+    if not os.path.exists("api_keys.txt"):
+        print("🚨 ERROR: api_keys.txt not found!")
+        exit(1)
+    with open("api_keys.txt", "r") as f:
+        keys = [line.strip() for line in f if line.strip()]
+    if not keys:
+        print("🚨 ERROR: api_keys.txt is empty!")
+        exit(1)
+    return keys
+
+API_KEYS = get_api_keys()
+current_key_index = 0
+
+def call_gemini(html_payload, category, brand):
+    """Sends HTML to Gemini 2.5 Flash using strict Structured Outputs."""
+    global current_key_index
+    
+    prompt = f"""
+    Extract all appliance data from the following HTML into a JSON array.
+    Default Category: "{category}"
+    Default Brand: "{brand}"
+    
+    Ignore useless meta-text like 'Compare', 'View Details', 'Reviews/Feedback', or 'Valid Till Date'.
+    """
+
+    # Enforce strict JSON Schema output at the API level
+    schema = {
+        "type": "ARRAY",
+        "items": {
+            "type": "OBJECT",
+            "properties": {
+                "Category": {"type": "STRING"},
+                "Brand": {"type": "STRING"},
+                "Model": {"type": "STRING"},
+                "Star Rating": {"type": "STRING"}
+            },
+            "required": ["Category", "Brand", "Model", "Star Rating"],
+            "additionalProperties": {"type": "STRING"} # Dynamically catches all other tech specs
+        }
+    }
+
+    for _ in range(len(API_KEYS)):
+        key = API_KEYS[current_key_index]
+        client = genai.Client(api_key=key)
+        
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=f"{prompt}\n\nHTML DATA:\n{html_payload}",
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.0 # Force deterministic output
+                )
+            )
+            return json.loads(response.text)
+            
+        except Exception as e:
+            err_str = str(e).lower()
+            if "429" in err_str or "quota" in err_str or "exhausted" in err_str:
+                print("   ⏳ Rate limit hit! Switching API key...")
+                current_key_index = (current_key_index + 1) % len(API_KEYS)
+                continue # Try immediately with the next key
+            else:
+                print(f"   ⚠️ API Error: {e}")
+                return []
+                
+    print("   🚨 All API keys rate-limited! Sleeping for 60 seconds...")
+    time.sleep(60)
+    return []
+
+# --- EXTRACTOR ---
+def parse_cards_with_ai(html_text, category_name, default_brand):
+    """Cleans the HTML and routes to the Gemini SDK."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    
+    for tag in soup(["script", "style", "img", "svg", "noscript", "meta"]):
+        tag.decompose()
+        
+    container = soup.find(class_=re.compile(r"product|list|grid|result")) or soup.body
+    clean_html = str(container)[:50000] 
+    
+    return call_gemini(clean_html, category_name, default_brand)
 
 def push_to_github():
-    os.system('git add index.html script.py data/')
+    os.system('git add index.html script.py data/ .gitignore')
     status = subprocess.getoutput('git status --porcelain')
     if status.strip():
-        os.system('git commit -m "Auto-update BEE dataset"')
+        os.system('git commit -m "Auto-update dataset using Gemini 2.5 Flash SDK"')
         os.system('git push -u origin main')
-        print("Data pushed to GitHub.")
+        print("🚀 LIVE WEBSITE UPDATED SUCCESSFULLY!")
+    else:
+        print("🤷‍♂️ No new data to upload.")
 
 def get_all_appliances(session):
     for _ in range(5):
@@ -41,46 +131,11 @@ def auto_discover_rules(session, eqcode):
         except: time.sleep(10)
     return None, None, []
 
-def parse_cards(html_text, category_name, default_brand):
-    extracted = []
-    soup = BeautifulSoup(html_text, "html.parser")
-    cards = soup.find_all(class_=re.compile(r"product-column|product-details|product-listing"))
-    if not cards: cards = soup.find_all("li")
-
-    for card in cards:
-        h3 = card.find("h3")
-        if not h3: continue
-        
-        star_rating = "0"
-        img = h3.find("img")
-        if img and img.get("src"):
-            m = re.search(r'(\d+)\.gif', img.get("src"))
-            if m: star_rating = m.group(1)
-        
-        parts = [t.strip() for t in h3.strings if t.strip()]
-        brand = parts[0] if len(parts) > 0 else default_brand
-        model = parts[1] if len(parts) > 1 else "Unknown"
-        item = {"Category": category_name, "Brand": brand, "Model": model, "Star Rating": star_rating}
-        
-        details_area = card.find(class_=re.compile(r"content|body|detail|spec")) or card
-        for el in details_area.find_all(['p', 'li', 'tr', 'div']):
-            if el.name in ['div', 'tr'] and (el.find('p') or el.find('li')): continue
-            
-            lbl = el.find(['span', 'label', 'th', 'td'])
-            val_tag = el.find(['strong', 'b', 'td'])
-            if lbl and val_tag and lbl != val_tag:
-                k = lbl.get_text(" ", strip=True).replace(":", "")
-                v = val_tag.get_text(" ", strip=True)
-                if k and v and not k.isdigit(): item[k] = v
-            elif ":" in el.text:
-                p = el.get_text(strip=True).split(":", 1)
-                if len(p) == 2 and not p[0].strip().isdigit(): item[p[0].strip()] = p[1].strip()
-        extracted.append(item)
-    return extracted
-
 def run_scraper():
+    print(f"🔑 Loaded {len(API_KEYS)} Gemini API Key(s).")
     os.makedirs("data", exist_ok=True)
     session = requests.Session(impersonate="chrome110")
+    print("🤖 Connecting to BEE Server via Local IP...")
     appliances = get_all_appliances(session)
     if not appliances: return
 
@@ -90,6 +145,7 @@ def run_scraper():
         safe_filename = f"data/{name.replace(' ', '_').replace('/', '_')}.json"
         if os.path.exists(safe_filename): continue
         
+        print(f"🚀 AI Extracting: {name}...")
         api_endpoint, base_payload, brands = auto_discover_rules(session, eqcode)
         if not api_endpoint: continue
         
@@ -101,28 +157,24 @@ def run_scraper():
             try:
                 res = session.post(api_endpoint, json=payload, headers=headers, timeout=None)
                 if res.status_code == 200 and len(res.text.strip()) > 100:
-                    for item in parse_cards(res.text, name, brand):
-                        item_id = f"{item['Brand']}-{item['Model']}-{item['Star Rating']}"
+                    ai_results = parse_cards_with_ai(res.text, name, brand)
+                    
+                    for item in ai_results:
+                        item_id = f"{item.get('Brand', 'Unk')}-{item.get('Model', 'Unk')}-{item.get('Star Rating', '0')}"
                         if item_id not in seen_items:
                             appliance_data.append(item)
                             seen_items.add(item_id)
                 else: raise Exception()
-            except:
-                for star in ["1", "2", "3", "4", "5"]:
-                    try:
-                        res = session.post(api_endpoint, json={**payload, "starlabel": [star]}, headers=headers, timeout=None)
-                        if res.status_code == 200:
-                            for item in parse_cards(res.text, name, brand):
-                                item_id = f"{item['Brand']}-{item['Model']}-{item['Star Rating']}"
-                                if item_id not in seen_items:
-                                    appliance_data.append(item)
-                                    seen_items.add(item_id)
-                    except: pass
-            time.sleep(1)
+            except Exception as e:
+                pass 
+            time.sleep(1) 
 
-        with open(safe_filename, "w", encoding="utf-8") as f:
-            json.dump(appliance_data, f, separators=(',', ':'))
+        if appliance_data:
+            with open(safe_filename, "w", encoding="utf-8") as f:
+                json.dump(appliance_data, f, separators=(',', ':'))
+            print(f"   ✅ AI Saved {len(appliance_data)} perfect items")
 
+    print("🛠️ Generating manifest...")
     manifest_files = [f for f in os.listdir("data") if f.endswith(".json") and f != "manifest.json"]
     with open("data/manifest.json", "w") as f:
         json.dump(manifest_files, f)
