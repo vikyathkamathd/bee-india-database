@@ -51,8 +51,8 @@
                         <div class="p-4 flex-1">
                             <div class="flex justify-between items-start mb-3">
                                 <span class="text-[10px] font-black text-gray-500 tracking-wider uppercase bg-gray-100 px-2 py-1 rounded shadow-sm border border-gray-200" x-text="p.Brand"></span>
-                                <div class="flex items-center gap-1 bg-green-600 text-white px-2 py-1 rounded text-xs font-bold shadow-sm">
-                                    <span x-text="p['Star Rating'] || '0'"></span> <span class="text-[10px]">★</span>
+                                <div x-show="p['Star Rating'] && p['Star Rating'] != '0'" class="flex items-center gap-1 bg-green-600 text-white px-2 py-1 rounded text-xs font-bold shadow-sm">
+                                    <span x-text="p['Star Rating']"></span> <span class="text-[10px]">★</span>
                                 </div>
                             </div>
                             
