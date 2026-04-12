@@ -3,207 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>BEE India Database</title>
+    <title>BEE Database</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .modal-open { overflow: hidden; }
+        body.modal-open { overflow: hidden; }
+        .search-results-dropdown { max-height: 300px; overflow-y: auto; }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 antialiased">
-    <div x-data="applianceApp()" x-init="initApp()" x-cloak>
-        
-        <!-- Navbar -->
-        <nav class="bg-[#2874f0] sticky top-0 z-40 shadow-md">
-            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-                <h1 class="text-white font-extrabold text-xl italic tracking-tighter">BEE</h1>
-                <div class="relative flex-1">
-                    <input type="text" x-model.debounce.300ms="searchQuery" placeholder="Search models or brands..." 
-                           class="w-full bg-white rounded-md py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-300 shadow-inner">
-                    <span class="absolute left-3 top-2.5 text-gray-400 text-xs">🔍</span>
+<body class="bg-[#f1f3f6] text-gray-800 antialiased font-sans" :class="isModalOpen() ? 'modal-open' : ''" x-data="applianceApp()" x-init="initApp()">
+
+    <!-- Header -->
+    <header class="bg-[#2874f0] sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
+            <h1 class="text-white font-black italic text-xl tracking-tighter cursor-pointer" @click="location.reload()">BEE</h1>
+            
+            <!-- Unified Search Bar -->
+            <div class="relative flex-1 group">
+                <div class="relative flex items-center bg-white rounded-sm shadow-inner">
+                    <input type="text" 
+                           x-model.debounce.300ms="searchQuery" 
+                           @focus="isSearchFocused = true"
+                           @click.away="isSearchFocused = false"
+                           placeholder="Search brands, models, or categories..." 
+                           class="w-full py-2 pl-3 pr-10 text-sm outline-none rounded-sm">
+                    <span class="absolute right-3 text-blue-600 font-bold">🔍</span>
                 </div>
-            </div>
-        </nav>
 
-        <!-- Category Section -->
-        <div class="bg-white border-b shadow-sm sticky top-[60px] z-30">
-            <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest" x-text="'Last Updated: ' + lastUpdated"></span>
-                    <button @click="isCatSearchOpen = true" class="text-[#2874f0] text-xs font-bold flex items-center gap-1">
-                        <span>CHANGE CATEGORY</span> 📂
-                    </button>
-                </div>
-                <div class="flex overflow-x-auto no-scrollbar gap-2 items-center pb-1">
-                     <template x-for="cat in categories.slice(0, 8)" :key="cat.file">
-                         <button @click="selectedCategory = cat.file; fetchData()"
-                                 :class="selectedCategory === cat.file ? 'bg-[#2874f0] text-white border-[#2874f0]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
-                                 class="px-4 py-1.5 rounded-full border text-[11px] font-bold whitespace-nowrap transition-all shadow-sm"
-                                 x-text="cat.name">
-                         </button>
-                     </template>
-                     <button @click="isCatSearchOpen = true" class="px-4 py-1.5 rounded-full border border-dashed border-gray-300 text-gray-400 text-[11px] font-bold whitespace-nowrap">
-                         VIEW ALL...
-                     </button>
-                </div>
-            </div>
-        </div>
-
-        <main class="max-w-7xl mx-auto mb-20 p-4">
-            <div class="flex justify-between items-center mb-4 text-[10px] font-black text-gray-500 uppercase tracking-tighter">
-                <span x-text="products.length > 0 ? `${filteredProducts.length} items in ${currentCategoryName}` : 'Syncing Data...'"></span>
-            </div>
-
-            <!-- Product Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <template x-for="p in filteredProducts.slice(0, displayLimit)" :key="p.Model + Math.random()">
-                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between overflow-hidden hover:shadow-md transition-shadow">
-                        <div class="p-4 flex-1">
-                            <div class="flex justify-between items-start mb-3">
-                                <span class="text-[9px] font-black text-blue-600 tracking-wider uppercase bg-blue-50 px-2 py-1 rounded border border-blue-100" x-text="p.Brand"></span>
-                                <div x-show="p['Star Rating'] && p['Star Rating'] != '0'" class="flex items-center gap-1 bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">
-                                    <span x-text="p['Star Rating']"></span> <span>★</span>
-                                </div>
-                            </div>
-                            <h3 class="font-bold text-gray-900 text-sm leading-tight mb-4 line-clamp-2" x-text="p.Model"></h3>
-                            <div class="space-y-0 text-[11px]">
-                                <template x-for="[key, val] in Object.entries(p).filter(([k, v]) => !['Brand', 'Model', 'Category', 'Star Rating'].includes(k) && v).slice(0, 4)">
-                                    <div class="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                                        <span class="text-gray-400 truncate pr-2 w-1/2" x-text="key"></span>
-                                        <span class="font-bold text-gray-700 text-right truncate w-1/2" x-text="val"></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                        <button @click="viewSpecs(p)" class="w-full bg-gray-50 hover:bg-gray-100 text-gray-500 font-bold text-[10px] py-3 border-t border-gray-100 transition-colors tracking-widest">
-                            SPECIFICATIONS
-                        </button>
-                    </div>
-                </template>
-            </div>
-
-            <!-- Empty State -->
-            <div x-show="!isLoading && products.length === 0" class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-gray-200 mt-4">
-                <span class="text-4xl mb-2">📭</span>
-                <h3 class="font-bold text-gray-700">No data found</h3>
-                <p class="text-gray-400 text-xs mt-1">Try a different search or category.</p>
-            </div>
-
-            <div id="load-more-trigger" class="p-8 flex justify-center">
-                <template x-if="isLoading">
-                    <div class="w-6 h-6 border-2 border-[#2874f0] border-t-transparent rounded-full animate-spin"></div>
-                </template>
-            </div>
-        </main>
-
-        <!-- Bottom Actions -->
-        <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex h-14 shadow-lg z-40">
-            <button @click="isSortOpen = true" class="flex-1 font-bold text-[10px] text-gray-600 border-r border-gray-100 flex items-center justify-center gap-2 hover:bg-gray-50">
-                ⇅ SORT
-            </button>
-            <button @click="openFilter()" class="flex-1 font-bold text-[10px] text-gray-600 flex items-center justify-center gap-2 hover:bg-gray-50">
-                ⚙️ FILTER
-            </button>
-        </div>
-
-        <!-- Category Search Modal -->
-        <div x-show="isCatSearchOpen" class="fixed inset-0 z-[100] flex flex-col bg-white" x-cloak>
-            <div class="p-4 border-b flex items-center gap-4 bg-gray-50">
-                <button @click="isCatSearchOpen = false" class="text-gray-400 text-xl">←</button>
-                <input type="text" x-model="catSearchQuery" placeholder="Search categories..." 
-                       class="flex-1 bg-white border rounded-lg py-2 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-300">
-            </div>
-            <div class="flex-1 overflow-y-auto p-2">
-                <div class="grid grid-cols-1 gap-1">
-                    <template x-for="cat in filteredCategories" :key="cat.file">
-                        <button @click="selectedCategory = cat.file; fetchData(); isCatSearchOpen = false" 
-                                :class="selectedCategory === cat.file ? 'bg-blue-50 border-blue-200 text-blue-700' : 'text-gray-600 border-transparent'"
-                                class="w-full text-left px-4 py-3 rounded-lg border text-sm font-medium flex justify-between items-center">
-                            <span x-text="cat.name"></span>
-                            <span x-show="selectedCategory === cat.file">✓</span>
-                        </button>
-                    </template>
-                </div>
-            </div>
-        </div>
-
-        <!-- Details Modal -->
-        <div x-show="isSpecsOpen" class="fixed inset-0 z-[70] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4" x-cloak>
-            <div @click="closeSpecs()" class="absolute inset-0 bg-black/60 transition-opacity"></div>
-            <div class="relative bg-white w-full sm:max-w-md h-[80vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-2xl flex flex-col shadow-2xl overflow-hidden">
-                <div class="flex justify-between items-center p-5 border-b shadow-sm">
-                    <div class="overflow-hidden">
-                        <span class="text-[9px] font-black text-blue-600 uppercase" x-text="selectedProduct?.Brand"></span>
-                        <h2 class="font-bold text-gray-900 text-lg truncate leading-tight mt-0.5" x-text="selectedProduct?.Model"></h2>
-                    </div>
-                    <button @click="closeSpecs()" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500 font-bold">&times;</button>
-                </div>
-                <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
-                    <div class="bg-white border rounded-xl overflow-hidden shadow-sm">
-                         <template x-for="(val, key) in selectedProduct">
-                            <template x-if="val && !['Category'].includes(key)">
-                                <div class="flex flex-col sm:flex-row p-3.5 border-b border-gray-50 last:border-0">
-                                    <span class="text-[10px] text-gray-400 uppercase font-black mb-1 sm:mb-0 sm:w-1/2" x-text="key"></span>
-                                    <span class="text-sm font-bold text-gray-800 sm:w-1/2 sm:text-right" x-text="val"></span>
+                <!-- Search Suggestions Dropdown -->
+                <div x-show="isSearchFocused && (searchQuery.length > 0)" 
+                     x-cloak
+                     class="absolute top-[100%] left-0 right-0 bg-white shadow-xl rounded-b-sm border-t border-gray-100 z-50 search-results-dropdown">
+                    
+                    <!-- Category Suggestions -->
+                    <template x-if="filteredCategories.length > 0">
+                        <div>
+                            <div class="bg-gray-50 px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Categories</div>
+                            <template x-for="cat in filteredCategories" :key="cat.file">
+                                <div @mousedown="selectCategory(cat)" class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between border-b border-gray-50">
+                                    <span class="text-sm text-gray-700" x-text="cat.name"></span>
+                                    <span class="text-[10px] text-blue-500 font-bold">SWITCH →</span>
                                 </div>
                             </template>
-                         </template>
+                        </div>
+                    </template>
+
+                    <!-- Quick Model Search Result -->
+                    <div class="p-4 text-center" x-show="filteredProducts.length === 0 && filteredCategories.length === 0">
+                        <p class="text-gray-400 text-xs italic">No matching products or categories...</p>
                     </div>
                 </div>
             </div>
         </div>
+    </header>
 
-        <!-- Filter/Sort Modals (Simplified for brevity) -->
-        <div x-show="isFilterOpen" class="fixed inset-0 z-[60] bg-white flex flex-col" x-cloak>
-            <div class="p-4 border-b flex justify-between items-center bg-gray-50">
-                <h2 class="font-bold">Filters</h2>
-                <button @click="closeFilter()" class="text-2xl text-gray-300">&times;</button>
+    <!-- Sub-header: Status & Sorting -->
+    <section class="bg-white border-b sticky top-14 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar">
+            <div class="flex flex-col">
+                <span class="text-[10px] font-black text-blue-600 uppercase tracking-tighter leading-none" x-text="currentCategoryName"></span>
+                <span class="text-[9px] text-gray-400 font-medium" x-text="'Updated: ' + lastUpdated"></span>
             </div>
-            <div class="flex flex-1 overflow-hidden">
-                <div class="w-1/3 bg-gray-50 overflow-y-auto border-r">
-                    <button @click="activeTab = 'brand'" :class="activeTab === 'brand' ? 'bg-white border-l-4 border-blue-500 text-blue-600' : 'text-gray-400'" class="w-full text-left p-4 text-[10px] font-black uppercase">Brand</button>
-                    <template x-for="(options, spec) in dynamicFilters">
-                        <button @click="activeTab = spec" :class="activeTab === spec ? 'bg-white border-l-4 border-blue-500 text-blue-600' : 'text-gray-400'" class="w-full text-left p-4 text-[10px] font-black uppercase truncate" x-text="spec"></button>
+            
+            <div class="flex items-center gap-2">
+                <button @click="isSortOpen = true" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border rounded-sm text-[11px] font-bold text-gray-600 hover:bg-gray-100">
+                    ⇅ <span x-text="getSortLabel()"></span>
+                </button>
+                <button @click="isFilterOpen = true" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border rounded-sm text-[11px] font-bold text-gray-600 hover:bg-gray-100">
+                    ⚙️ FILTER
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Feed -->
+    <main class="max-w-7xl mx-auto p-3">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            <template x-for="p in filteredProducts.slice(0, displayLimit)" :key="p.Model + Math.random()">
+                <div class="bg-white flex flex-col hover:shadow-lg transition-all duration-200 cursor-pointer group rounded-sm overflow-hidden" @click="viewSpecs(p)">
+                    <!-- Brand & Rating -->
+                    <div class="p-3 pb-0 flex items-center justify-between gap-2">
+                        <span class="text-[9px] font-black text-gray-400 uppercase truncate flex-1" x-text="p.Brand"></span>
+                        <div x-show="p['Star Rating'] && p['Star Rating'] != '0'" class="flex items-center gap-0.5 bg-green-600 text-white px-1.5 py-0.5 rounded-sm text-[10px] font-bold">
+                            <span x-text="p['Star Rating']"></span> <span>★</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 pt-1 flex-1">
+                        <h3 class="text-gray-800 text-xs font-medium leading-normal line-clamp-2 mb-3" x-text="p.Model"></h3>
+                        
+                        <!-- Mini Specs -->
+                        <div class="space-y-1.5 border-t border-gray-50 pt-2">
+                            <template x-for="[key, val] in getMiniSpecs(p)">
+                                <div class="flex justify-between items-center text-[10px]">
+                                    <span class="text-gray-400 truncate pr-2 w-1/2" x-text="key"></span>
+                                    <span class="font-bold text-gray-600 text-right truncate w-1/2" x-text="val"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Load More / Spinner -->
+        <div id="load-more-trigger" class="py-10 flex flex-col items-center justify-center gap-2">
+            <template x-if="isLoading">
+                <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </template>
+            <p x-show="!isLoading && products.length === 0" class="text-gray-400 text-sm font-medium italic">No products found in this category.</p>
+        </div>
+    </main>
+
+    <!-- Sort Bottom Sheet -->
+    <div x-show="isSortOpen" class="fixed inset-0 z-[100]" x-cloak>
+        <div @click="isSortOpen = false" class="absolute inset-0 bg-black/50 transition-opacity"></div>
+        <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-xl overflow-hidden" x-transition:enter="translate-y-full duration-300">
+            <div class="p-4 border-b flex items-center justify-between">
+                <span class="text-sm font-black text-gray-400 uppercase tracking-widest">Sort By</span>
+                <button @click="isSortOpen = false" class="text-2xl text-gray-300">&times;</button>
+            </div>
+            <div class="flex flex-col">
+                <template x-for="option in sortOptions">
+                    <button @click="sortBy = option.value; isSortOpen = false" 
+                            class="p-4 text-left text-sm font-bold flex items-center justify-between border-b border-gray-50 hover:bg-gray-50">
+                        <span :class="sortBy === option.value ? 'text-blue-600' : 'text-gray-700'" x-text="option.label"></span>
+                        <span x-show="sortBy === option.value" class="text-blue-600">●</span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div x-show="isFilterOpen" class="fixed inset-0 z-[100] bg-white flex flex-col" x-cloak>
+        <div class="h-14 flex items-center justify-between px-4 border-b bg-white">
+            <h2 class="font-bold text-gray-800">Filters</h2>
+            <button @click="isFilterOpen = false" class="text-2xl text-gray-400 font-light">&times;</button>
+        </div>
+        <div class="flex flex-1 overflow-hidden">
+            <div class="w-1/3 bg-[#f1f3f6] overflow-y-auto border-r h-full">
+                <button @click="activeFilterTab = 'brand'" 
+                        :class="activeFilterTab === 'brand' ? 'bg-white text-blue-600 border-l-4 border-blue-600' : 'text-gray-500'" 
+                        class="w-full text-left p-4 text-[10px] font-black uppercase">Brand</button>
+                <template x-for="(options, spec) in dynamicFilters">
+                    <button @click="activeFilterTab = spec" 
+                            :class="activeFilterTab === spec ? 'bg-white text-blue-600 border-l-4 border-blue-600' : 'text-gray-500'" 
+                            class="w-full text-left p-4 text-[10px] font-black uppercase truncate" x-text="spec"></button>
+                </template>
+            </div>
+            <div class="flex-1 overflow-y-auto bg-white p-2">
+                <div x-show="activeFilterTab === 'brand'">
+                    <template x-for="b in allBrands">
+                        <label class="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-md cursor-pointer">
+                            <input type="checkbox" :value="b" x-model="brandFilters" class="w-4 h-4 accent-blue-600">
+                            <span class="text-sm text-gray-700 font-medium" x-text="b"></span>
+                        </label>
                     </template>
                 </div>
-                <div class="flex-1 overflow-y-auto p-4 bg-white">
-                    <div x-show="activeTab === 'brand'">
-                        <template x-for="b in allBrands">
-                            <label class="flex items-center gap-3 p-3 border-b border-gray-50">
-                                <input type="checkbox" :value="b" x-model="brandFilters" class="w-4 h-4 accent-blue-600">
-                                <span class="text-sm text-gray-600" x-text="b"></span>
+                <template x-for="(options, spec) in dynamicFilters">
+                    <div x-show="activeFilterTab === spec">
+                        <template x-for="opt in options">
+                            <label class="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-md cursor-pointer">
+                                <input type="checkbox" :value="opt" x-model="activeFilters[spec]" class="w-4 h-4 accent-blue-600">
+                                <span class="text-sm text-gray-700 font-medium" x-text="opt"></span>
                             </label>
                         </template>
                     </div>
-                    <template x-for="(options, spec) in dynamicFilters">
-                        <div x-show="activeTab === spec">
-                            <template x-for="opt in options">
-                                <label class="flex items-center gap-3 p-3 border-b border-gray-50">
-                                    <input type="checkbox" :value="opt" x-model="activeFilters[spec]" class="w-4 h-4 accent-blue-600">
-                                    <span class="text-sm text-gray-600" x-text="opt"></span>
-                                </label>
-                            </template>
-                        </div>
+                </template>
+            </div>
+        </div>
+        <div class="p-4 border-t flex gap-3 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] bg-white">
+            <button @click="resetFilters()" class="flex-1 py-3 text-xs font-black text-gray-500 border rounded-sm uppercase tracking-widest">Clear All</button>
+            <button @click="isFilterOpen = false" class="flex-1 py-3 text-xs font-black text-white bg-[#fb641b] rounded-sm uppercase tracking-widest shadow-md">Apply</button>
+        </div>
+    </div>
+
+    <!-- Product Details Bottom Sheet -->
+    <div x-show="isSpecsOpen" class="fixed inset-0 z-[100] flex flex-col justify-end" x-cloak>
+        <div @click="closeSpecs()" class="absolute inset-0 bg-black/60 transition-opacity"></div>
+        <div class="relative bg-white w-full max-w-2xl mx-auto h-[85vh] rounded-t-2xl flex flex-col shadow-2xl overflow-hidden transition-transform transform" 
+             x-transition:enter="translate-y-full duration-300">
+            <div class="p-5 border-b flex justify-between items-start bg-white sticky top-0 z-10">
+                <div>
+                    <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest" x-text="selectedProduct?.Brand"></span>
+                    <h2 class="text-lg font-bold text-gray-900 leading-tight mt-1 pr-4" x-text="selectedProduct?.Model"></h2>
+                </div>
+                <button @click="closeSpecs()" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:text-gray-800 transition-colors">&times;</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 bg-[#f1f3f6]">
+                <div class="bg-white rounded-md border border-gray-200 overflow-hidden">
+                    <template x-for="(val, key) in selectedProduct">
+                        <template x-if="val && !['Category', 'Brand', 'Model'].includes(key)">
+                            <div class="flex flex-col sm:flex-row py-4 px-5 border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                                <span class="text-[11px] text-gray-400 font-bold uppercase w-full sm:w-1/2 mb-1 sm:mb-0" x-text="key"></span>
+                                <span class="text-sm text-gray-800 font-bold w-full sm:w-1/2" x-text="val"></span>
+                            </div>
+                        </template>
                     </template>
                 </div>
             </div>
-            <div class="p-4 border-t flex gap-4 bg-gray-50">
-                <button @click="resetFilters()" class="flex-1 py-3 text-xs font-bold border rounded-lg bg-white">CLEAR</button>
-                <button @click="closeFilter()" class="flex-1 py-3 text-xs font-bold bg-[#fb641b] text-white rounded-lg">APPLY</button>
-            </div>
         </div>
-
     </div>
 
     <script>
         function applianceApp() {
             return {
-                selectedCategory: '', categories: [], products: [], searchQuery: '', catSearchQuery: '',
-                displayLimit: 24, isLoading: false, isFilterOpen: false, isSortOpen: false, isCatSearchOpen: false,
-                activeTab: 'brand', sortBy: 'relevance', brandFilters: [], allBrands: [], 
-                activeFilters: {}, dynamicFilters: {}, selectedProduct: null, isSpecsOpen: false, lastUpdated: '',
+                selectedCategory: '', categories: [], products: [], searchQuery: '', 
+                isSearchFocused: false, displayLimit: 20, isLoading: false,
+                isFilterOpen: false, isSortOpen: false, activeFilterTab: 'brand',
+                sortBy: 'relevance', brandFilters: [], allBrands: [],
+                activeFilters: {}, dynamicFilters: {}, selectedProduct: null, 
+                isSpecsOpen: false, lastUpdated: '',
+                sortOptions: [
+                    { label: 'Relevance', value: 'relevance' },
+                    { label: 'Highest Star Rating', value: 'stars' },
+                    { label: 'Brand (A-Z)', value: 'brand' }
+                ],
 
                 async initApp() { await this.scanFiles(); this.initInfiniteScroll(); },
                 
@@ -214,19 +232,24 @@
                         this.lastUpdated = data.last_updated;
                         this.categories = data.files.map(f => ({ file: 'data/' + f, name: f.replace('.json', '').replace(/_/g, ' ') }));
                         if (this.categories.length > 0) {
-                            this.selectedCategory = this.categories[0].file;
-                            this.fetchData();
+                            this.selectCategory(this.categories[0]);
                         }
                     } catch (e) {}
+                },
+
+                selectCategory(cat) {
+                    this.selectedCategory = cat.file;
+                    this.searchQuery = '';
+                    this.fetchData();
                 },
                 
                 async fetchData() {
                     if (!this.selectedCategory) return;
-                    this.isLoading = true;
+                    this.isLoading = true; this.displayLimit = 20;
                     try {
                         const res = await fetch(this.selectedCategory);
                         this.products = await res.json();
-                        this.generateFilters(); this.displayLimit = 24;
+                        this.generateFilters();
                     } catch (e) { this.products = []; }
                     this.isLoading = false;
                 },
@@ -235,35 +258,67 @@
                     this.dynamicFilters = {}; this.activeFilters = {};
                     this.allBrands = Array.from(new Set(this.products.map(p => p.Brand))).sort();
                     const keys = new Set();
-                    this.products.forEach(p => Object.keys(p).forEach(k => { if (!['Brand', 'Model', 'Category', 'Star Rating'].includes(k)) keys.add(k); }));
+                    this.products.forEach(p => Object.keys(p).forEach(k => { 
+                        if (!['Brand', 'Model', 'Category', 'Star Rating'].includes(k)) keys.add(k); 
+                    }));
                     keys.forEach(k => {
-                        const vals = Array.from(new Set(this.products.map(p => p[k]))).filter(v => v && String(v).length < 40).sort();
-                        if (vals.length > 1 && vals.length < 100) { this.dynamicFilters[k] = vals; this.activeFilters[k] = []; }
+                        const vals = Array.from(new Set(this.products.map(p => p[k])))
+                                          .filter(v => v && String(v).length < 40).sort();
+                        if (vals.length > 1 && vals.length < 50) { 
+                            this.dynamicFilters[k] = vals; 
+                            this.activeFilters[k] = []; 
+                        }
                     });
                 },
+
+                getSortLabel() { return this.sortOptions.find(o => o.value === this.sortBy).label; },
+                isModalOpen() { return this.isFilterOpen || this.isSortOpen || this.isSpecsOpen; },
+                viewSpecs(product) { this.selectedProduct = product; this.isSpecsOpen = true; },
+                closeSpecs() { this.isSpecsOpen = false; this.selectedProduct = null; },
+                resetFilters() { this.brandFilters = []; Object.keys(this.activeFilters).forEach(k => this.activeFilters[k] = []); },
                 
-                viewSpecs(product) { this.selectedProduct = product; this.isSpecsOpen = true; document.body.classList.add('modal-open'); },
-                closeSpecs() { this.isSpecsOpen = false; document.body.classList.remove('modal-open'); },
-                openFilter() { this.isFilterOpen = true; document.body.classList.add('modal-open'); },
-                closeFilter() { this.isFilterOpen = false; document.body.classList.remove('modal-open'); },
-                resetFilters() { this.brandFilters = []; this.searchQuery = ''; Object.keys(this.activeFilters).forEach(k => this.activeFilters[k] = []); },
-                
+                getMiniSpecs(p) {
+                    return Object.entries(p).filter(([k, v]) => !['Brand', 'Model', 'Category', 'Star Rating'].includes(k) && v).slice(0, 3);
+                },
+
                 initInfiniteScroll() {
                     new IntersectionObserver((entries) => {
-                        if (entries[0].isIntersecting && !this.isLoading && this.displayLimit < this.filteredProducts.length) this.displayLimit += 24;
+                        if (entries[0].isIntersecting && !this.isLoading && this.displayLimit < this.filteredProducts.length) {
+                            this.displayLimit += 20;
+                        }
                     }, { threshold: 0.1 }).observe(document.getElementById('load-more-trigger'));
                 },
                 
-                get currentCategoryName() { return this.categories.find(c => c.file === this.selectedCategory)?.name || 'Database'; },
+                get currentCategoryName() { return this.categories.find(c => c.file === this.selectedCategory)?.name || 'Select Category'; },
+                
                 get filteredCategories() {
-                    const q = this.catSearchQuery.toLowerCase();
+                    const q = this.searchQuery.toLowerCase();
                     return this.categories.filter(c => c.name.toLowerCase().includes(q));
                 },
+
                 get filteredProducts() {
                     let list = [...this.products];
-                    if (this.searchQuery) { const q = this.searchQuery.toLowerCase(); list = list.filter(p => (p.Brand + p.Model).toLowerCase().includes(q)); }
-                    if (this.brandFilters.length > 0) list = list.filter(p => this.brandFilters.includes(p.Brand));
-                    Object.keys(this.activeFilters).forEach(spec => { if (this.activeFilters[spec].length > 0) list = list.filter(p => this.activeFilters[spec].includes(p[spec])); });
+                    // Keyword Search
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase();
+                        list = list.filter(p => (p.Brand + p.Model).toLowerCase().includes(q));
+                    }
+                    // Star Filter
+                    if (this.brandFilters.length > 0) {
+                        list = list.filter(p => this.brandFilters.includes(p.Brand));
+                    }
+                    // Dynamic Filters
+                    Object.keys(this.activeFilters).forEach(spec => {
+                        if (this.activeFilters[spec].length > 0) {
+                            list = list.filter(p => this.activeFilters[spec].includes(p[spec]));
+                        }
+                    });
+                    // Sorting
+                    if (this.sortBy === 'stars') {
+                        list.sort((a, b) => (parseInt(b['Star Rating']) || 0) - (parseInt(a['Star Rating']) || 0));
+                    } else if (this.sortBy === 'brand') {
+                        list.sort((a, b) => a.Brand.localeCompare(b.Brand));
+                    }
                     return list;
                 }
             }
